@@ -1,4 +1,4 @@
-name: Build Linux 6.12 Kernel & Bootable ISO
+name: Build Linux 6.12 Kernel & Live XFCE Desktop Distro
 
 on:
   push:
@@ -16,7 +16,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential libncurses-dev bison flex libssl-dev libelf-dev bc \
-                                  grub-pc-bin grub-efi-amd64-bin xorriso mtools curl wget tar xz-utils
+                                  grub-pc-bin grub-efi-amd64-bin xorriso mtools curl wget tar xz-utils cpio gzip zstd
 
       - name: Download Linux 6.12 source
         run: |
@@ -41,40 +41,48 @@ jobs:
           cd build_src
           make -j$(nproc) bzImage
 
+      - name: Build XFCE & Falkon Live Rootfs
+        run: |
+          chmod +x build_rootfs.sh
+          docker run --rm --privileged -v $(pwd):/workspace alpine:3.21 /workspace/build_rootfs.sh
+          cd rootfs
+          sudo find . | sudo cpio -H newc -o | gzip -9 > ../initramfs.img
+          cd ..
+          ls -lh initramfs.img
+
       - name: Generate Bootable Hybrid ISO
         run: |
           mkdir -p isodir/boot/grub
           cp build_src/arch/x86/boot/bzImage isodir/boot/vmlinuz
+          cp initramfs.img isodir/boot/initramfs.img
 
           cat > isodir/boot/grub/grub.cfg << 'EOF'
           set default=0
-          set timeout=5
+          set timeout=3
 
           insmod all_video
           insmod gfxterm
 
-          menuentry "Linux 6.12 (Tiny-XFCE - DRM Panic Enabled)" {
-              linux /boot/vmlinuz console=tty0 drm.panic_screen=user quiet
+          menuentry "Linux 6.12 (XFCE Desktop + Falkon Browser - DRM Panic Enabled)" {
+              linux /boot/vmlinuz console=tty0 drm.panic_screen=user initcall_blacklist=bochs_pci_driver_init quiet
+              initrd /boot/initramfs.img
               boot
           }
 
-          menuentry "Linux 6.12 (Direct Boot - Test DRM Panic QR/User Screen)" {
-              linux /boot/vmlinuz console=tty0 drm.panic_screen=user
-              boot
-          }
-
-          menuentry "Linux 6.12 (Verbose Console Debug)" {
-              linux /boot/vmlinuz console=tty0 drm.panic_screen=user earlyprintk=vga loglevel=7
+          menuentry "Linux 6.12 (Direct Boot - Test DRM Panic Tux Screen)" {
+              linux /boot/vmlinuz console=tty0 drm.panic_screen=user initcall_blacklist=bochs_pci_driver_init panic=0
               boot
           }
           EOF
 
           grub-mkrescue -o linux.iso isodir
+          ls -lh linux.iso
 
-      - name: Upload Kernel Artifacts
+      - name: Upload Distro Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: linux-6.12-artifacts
+          name: linux-6.12-xfce-falkon-distro
           path: |
             build_src/arch/x86/boot/bzImage
+            initramfs.img
             linux.iso
