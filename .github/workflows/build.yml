@@ -45,9 +45,6 @@ jobs:
         run: |
           chmod +x build_rootfs.sh
           docker run --rm --privileged -v $(pwd):/workspace alpine:3.21 /workspace/build_rootfs.sh
-          cd rootfs
-          sudo find . | sudo cpio -H newc -o | gzip -9 > ../initramfs.img
-          cd ..
           ls -lh initramfs.img
 
       - name: Generate Bootable Hybrid ISO
