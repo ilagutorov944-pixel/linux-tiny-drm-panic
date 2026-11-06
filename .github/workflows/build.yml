@@ -23,6 +23,8 @@ jobs:
           wget https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.10.tar.xz
           mkdir -p build_src
           tar -xf linux-6.12.10.tar.xz -C build_src --strip-components=1
+          sed -i 's/-fshort-wchar/-fshort-wchar -std=gnu11/' build_src/drivers/firmware/efi/libstub/Makefile
+          sed -i 's/-fshort-wchar/-fshort-wchar -std=gnu11/' build_src/arch/x86/boot/compressed/Makefile
 
       - name: Configure Linux Kernel
         run: |
